@@ -1,58 +1,83 @@
 # Palantir Java Format for VS Code
 
-Extension VS Code de formatage Java local fondée sur
+**English** | [Français](README.fr.md)
+
+A local Java formatting extension for VS Code powered by
 [Palantir Java Format](https://github.com/palantir/palantir-java-format).
 
-> **Projet communautaire non officiel.** Cette extension n’est ni développée,
-> ni approuvée, ni sponsorisée par Palantir Technologies.
+> **Unofficial community project.** This extension is not developed, endorsed,
+> or sponsored by Palantir Technologies.
 
-Version de Palantir Java Format embarquée : **2.91.0**
+Bundled Palantir Java Format version: **2.91.0**
 
-## Fonctionnalités
+## Features
 
-- formatage complet des documents Java ;
-- réorganisation et espacement des imports ;
-- suppression des imports inutilisés ;
-- traitement standard des chaînes longues ;
-- formatage à la demande ou à l’enregistrement ;
-- exécution entièrement locale, sans port ni appel réseau pendant le formatage ;
-- worker Java persistant pour éviter de redémarrer la JVM à chaque document.
+- complete Java document formatting;
+- import reordering and spacing;
+- unused import removal;
+- standard long-string reflow;
+- on-demand and format-on-save support;
+- fully local execution, with no network port or request while formatting;
+- persistent Java worker, avoiding a JVM restart for every document.
 
-Le formatage repose sur l’API
-`FormatterService.formatSourceReflowStringsAndFixImports` de Palantir Java
-Format. La version embarquée est fixe afin de garantir un résultat reproductible.
+Formatting uses Palantir Java Format's
+`FormatterService.formatSourceReflowStringsAndFixImports` API. The bundled
+version is fixed to provide reproducible output.
 
-## Prérequis
+## Requirements
 
-- VS Code 1.96 ou ultérieur ;
-- un JDK 17 ou ultérieur.
+- VS Code 1.96 or later;
+- JDK 17 or later.
 
-Maven, Gradle et un dépôt Palantir ne sont pas nécessaires pour utiliser
-l’extension. Le VSIX contient le worker et Palantir Java Format dans un JAR
-autonome.
+Maven, Gradle, and a local Palantir repository are not required to use the
+extension. The VSIX contains the worker and Palantir Java Format in a
+self-contained JAR.
+
+## Why this extension?
+
+This extension prioritizes a self-contained installation and reproducible
+behavior: the Palantir Java Format engine and its worker are included in the
+VSIX. After installation, only JDK 17 or later is required.
+
+Java extensions based on Palantir Java Format do not all use the same execution
+model. The following table highlights the key differences so that you can make
+an informed choice:
+
+| Criterion | This extension | Other common approaches |
+| --- | --- | --- |
+| Formatter installation | Included in the VSIX | Repository clone, user-provided JAR or executable, or separate download |
+| Runtime requirements | JDK 17+ only | May require Gradle, a local repository, or path configuration |
+| Formatter version | Fixed version, displayed at runtime and verified during the build | May depend on the local installation or a download |
+| Execution | Persistent local Java worker | New process for each formatting request or external daemon, depending on the extension |
+| Communication | `stdin`/`stdout`, with no network port | Depends on the implementation |
+| Source-code processing | No network request while formatting | Depends on the installation and execution model |
+| Imports and long strings | Handled through Palantir's complete public formatting API | Features may be exposed separately or made optional |
+
+This model is particularly suitable for teams that want the same output on
+every workstation without managing the formatter binary themselves. As a
+trade-off, the Palantir Java Format version is upgraded through extension
+updates, and formatting currently applies to complete documents rather than
+selections.
 
 ## Installation
 
-### Depuis un VSIX
+### From a VSIX
 
-1. Télécharger ou construire le fichier
-   `palantir-java-format-<version>.vsix`.
-2. Dans VS Code, ouvrir la vue **Extensions**.
-3. Ouvrir le menu `…`, sélectionner **Install from VSIX…**, puis choisir le
-   fichier.
+1. Download or build `palantir-java-format-<version>.vsix`.
+2. Open the **Extensions** view in VS Code.
+3. Open the `…` menu, select **Install from VSIX…**, and choose the file.
 
-L’installation peut aussi être réalisée en ligne de commande :
+You can also install it from the command line:
 
 ```shell
 code --install-extension ./palantir-java-format-VERSION.vsix
 ```
 
-Pour construire le VSIX depuis les sources, consulter la section
-[Développement](#développement).
+To build the VSIX from source, see [Development](#development).
 
-## Démarrage rapide
+## Quick start
 
-Définir l’extension comme formateur Java par défaut dans les paramètres VS Code :
+Set the extension as the default Java formatter in your VS Code settings:
 
 ```json
 {
@@ -63,21 +88,21 @@ Définir l’extension comme formateur Java par défaut dans les paramètres VS 
 }
 ```
 
-Il est également possible de lancer **Format Document** depuis la palette de
-commandes sans activer le formatage à l’enregistrement.
+You can also run **Format Document** from the Command Palette without enabling
+format on save.
 
-Si plusieurs formateurs Java sont installés, utiliser **Format Document With…**
-puis **Configure Default Formatter…** pour sélectionner cette extension.
+If several Java formatters are installed, run **Format Document With…**, then
+select **Configure Default Formatter…** to choose this extension.
 
 ## Configuration
 
-| Paramètre | Type | Valeur par défaut | Description |
+| Setting | Type | Default | Description |
 | --- | --- | --- | --- |
-| `palantirJavaFormat.enabled` | booléen | `true` | Active le provider de formatage Java. |
-| `palantirJavaFormat.javaHome` | chaîne | `""` | Racine du JDK utilisé par le worker. |
-| `palantirJavaFormat.jvmArgs` | tableau de chaînes | `[]` | Arguments JVM supplémentaires placés avant `-jar`. |
+| `palantirJavaFormat.enabled` | boolean | `true` | Enables the Java formatting provider. |
+| `palantirJavaFormat.javaHome` | string | `""` | JDK home used by the worker. |
+| `palantirJavaFormat.jvmArgs` | string array | `[]` | Additional JVM arguments inserted before `-jar`. |
 
-Exemple complet :
+Complete example:
 
 ```json
 {
@@ -91,139 +116,137 @@ Exemple complet :
 }
 ```
 
-Java est sélectionné dans cet ordre :
+Java is selected in the following order:
 
-1. `palantirJavaFormat.javaHome` ;
-2. `JAVA_HOME` ;
-3. `java` (`java.exe` sous Windows) dans le `PATH`.
+1. `palantirJavaFormat.javaHome`;
+2. `JAVA_HOME`;
+3. `java` (`java.exe` on Windows) from `PATH`.
 
-`javaHome` doit désigner la racine du JDK, et non le binaire Java. La version du
-JDK est contrôlée avant le démarrage du worker. Chaque entrée de `jvmArgs` est
-transmise comme un argument distinct.
+`javaHome` must point to the JDK root, not the Java executable. The JDK version
+is checked before the worker starts. Each `jvmArgs` entry is passed as a
+separate argument.
 
-## Commandes
+## Commands
 
-Les commandes suivantes sont disponibles dans la palette :
+The following commands are available from the Command Palette:
 
-- **Palantir Java Format: Restart Worker** ;
-- **Palantir Java Format: Show Output** ;
+- **Palantir Java Format: Restart Worker**;
+- **Palantir Java Format: Show Output**;
 - **Palantir Java Format: Show Version**.
 
-## Dépannage
+## Troubleshooting
 
-Les diagnostics de l’extension et la sortie d’erreur du worker sont disponibles
-dans le canal **Output > Palantir Java Format**.
+Extension diagnostics and worker error output are available under
+**Output > Palantir Java Format**.
 
-En cas d’échec :
+If formatting fails:
 
-1. vérifier qu’un JDK 17 ou ultérieur est accessible ;
-2. contrôler `palantirJavaFormat.javaHome`, `JAVA_HOME` et le `PATH` ;
-3. exécuter **Palantir Java Format: Restart Worker** ;
-4. consulter le canal de sortie.
+1. verify that JDK 17 or later is available;
+2. check `palantirJavaFormat.javaHome`, `JAVA_HOME`, and `PATH`;
+3. run **Palantir Java Format: Restart Worker**;
+4. inspect the output channel.
 
-Après un crash, les requêtes en cours sont rejetées et jusqu’à trois
-redémarrages automatiques avec backoff sont tentés.
+After a crash, pending requests are rejected and the extension attempts up to
+three automatic restarts with backoff.
 
-Les bugs et demandes d’évolution sont suivis dans les
-[issues GitHub](https://github.com/Lucas-Fle/palantir-java-format-vscode/issues).
-Lors du signalement, indiquer les versions de l’extension, de VS Code et du JDK,
-le système d’exploitation, les paramètres `palantirJavaFormat` utilisés et les
-logs pertinents.
+Bugs and feature requests are tracked in
+[GitHub Issues](https://github.com/Lucas-Fle/palantir-java-format-vscode/issues).
+When reporting a problem, include the extension, VS Code, and JDK versions, the
+operating system, the relevant `palantirJavaFormat` settings, and applicable
+logs.
 
-## Confidentialité et sécurité
+## Privacy and security
 
-Les documents sont transmis uniquement au worker Java local par `stdin` et
-`stdout`. Aucun port réseau n’est ouvert et aucun appel réseau n’est effectué
-pendant le formatage. Le contenu des documents n’est pas journalisé par
-l’extension.
+Documents are sent only to the local Java worker through `stdin` and `stdout`.
+No network port is opened and no network request is made while formatting. The
+extension does not log document contents.
 
-Ne pas inclure de code source confidentiel, de jeton ou de donnée personnelle
-dans un rapport public. Les vulnérabilités doivent être signalées conformément à
-la [politique de sécurité](SECURITY.md).
+Do not include confidential source code, tokens, or personal data in a public
+report. Report vulnerabilities according to the
+[security policy](SECURITY.md).
 
 ## Architecture
 
 ```text
 VS Code / TypeScript
-    │ JSONL v1 sur stdin/stdout
+    │ JSONL v1 over stdin/stdout
     ▼
-worker Java persistant
+persistent Java worker
     │ ServiceLoader<FormatterService>
     ▼
 Palantir Java Format 2.91.0
 ```
 
-- `extension/` contient le provider VS Code, le client protocolaire et le cycle
-  de vie du processus ;
-- `worker/` contient le projet Maven Java 17 produisant le JAR exécutable ;
-- `protocol/protocol.schema.json` décrit les messages ;
-- `scripts/` automatise le build, les contrôles de version et le packaging VSIX.
+- `extension/` contains the VS Code provider, protocol client, and process
+  lifecycle management;
+- `worker/` contains the Java 17 Maven project that produces the executable
+  JAR;
+- `protocol/protocol.schema.json` describes the messages;
+- `scripts/` automates builds, version checks, and VSIX packaging.
 
-Le worker démarre à la première demande de formatage, reste actif entre les
-documents et s’arrête avec l’extension.
+The worker starts on the first formatting request, remains active between
+documents, and stops with the extension.
 
-## Développement
+## Development
 
-L’environnement de développement nécessite Node.js 22, un JDK 17 ou ultérieur
-et Git.
+The development environment requires Node.js 22, JDK 17 or later, and Git.
 
-Installer les dépendances et lancer la vérification complète :
+Install the dependencies and run the complete verification:
 
 ```shell
 npm ci
 npm run package
 ```
 
-Cette commande :
+This command:
 
-1. compile et teste le worker avec le Maven Wrapper ;
-2. exécute le JAR et vérifie la version de Palantir annoncée ;
-3. refuse un JAR absent ou plus ancien que ses sources ;
-4. exécute le lint, le type-check, les tests TypeScript et les tests VS Code ;
-5. crée `artifacts/palantir-java-format-<version>.vsix` ;
-6. vérifie que le worker et les notices légales figurent dans le VSIX.
+1. builds and tests the worker using the Maven Wrapper;
+2. runs the JAR and verifies the advertised Palantir version;
+3. rejects a missing JAR or one older than its sources;
+4. runs linting, type checking, TypeScript tests, and VS Code tests;
+5. creates `artifacts/palantir-java-format-<version>.vsix`;
+6. verifies that the worker and legal notices are present in the VSIX.
 
-Sous Linux sans session graphique :
+On Linux without a graphical session:
 
 ```shell
 xvfb-run -a npm run package
 ```
 
-Le Maven Wrapper utilise Maven 3.9.11 ; aucune installation globale de Maven
-n’est nécessaire :
+The Maven Wrapper uses Maven 3.9.11; no system-wide Maven installation is
+required:
 
 ```shell
 cd worker
 ./mvnw clean package
 ```
 
-Sous Windows :
+On Windows:
 
 ```powershell
 cd worker
 .\mvnw.cmd clean package
 ```
 
-Pour tester l’extension avec `F5`, exécuter `npm ci`, puis utiliser la
-configuration **Run Extension**. La tâche **Build for F5** construit le worker et
-l’extension avant d’ouvrir l’Extension Development Host.
+To test the extension with `F5`, run `npm ci`, then use the **Run Extension**
+configuration. The **Build for F5** task builds the worker and extension before
+opening the Extension Development Host.
 
-Les règles de contribution sont détaillées dans
+Contribution guidelines are available in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Protocole
+## Protocol
 
-Chaque ligne échangée est un objet JSON UTF-8. Les méthodes de la version 1 sont
-`initialize`, `formatDocument` et `shutdown`. Chaque requête possède un
-identifiant unique et les erreurs utilisent des codes stables. `stdout` est
-réservé au protocole ; les logs du worker sont écrits sur `stderr`.
+Each exchanged line is a UTF-8 JSON object. Protocol v1 supports the
+`initialize`, `formatDocument`, and `shutdown` methods. Every request has a
+unique identifier, and errors use stable codes. `stdout` is reserved for the
+protocol; worker logs are written to `stderr`.
 
-Voir [protocol/protocol.schema.json](protocol/protocol.schema.json).
+See [protocol/protocol.schema.json](protocol/protocol.schema.json).
 
-## Licence et attributions
+## License and attribution
 
-Ce projet est distribué sous licence
-[Apache License 2.0](LICENSE). Les licences et attributions des composants
-embarqués sont documentées dans
-[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) et conservées dans les
-artefacts distribués.
+This project is distributed under the
+[Apache License 2.0](LICENSE). Licenses and attribution for bundled components
+are documented in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) and
+preserved in distributed artifacts.
