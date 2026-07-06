@@ -21,6 +21,14 @@ import java.util.Properties;
 import java.util.Set;
 
 public final class ProtocolServer {
+    private enum ProtocolErrorCode {
+        INVALID_REQUEST,
+        INCOMPATIBLE_PROTOCOL,
+        METHOD_NOT_FOUND,
+        FORMAT_ERROR,
+        INTERNAL_ERROR
+    }
+
     static final int PROTOCOL_VERSION = 1;
     private static final Properties METADATA = loadMetadata();
     static final String WORKER_VERSION = metadata("worker.version");
@@ -56,35 +64,35 @@ public final class ProtocolServer {
         try {
             JsonElement parsed = gson.fromJson(line, JsonElement.class);
             if (parsed == null || !parsed.isJsonObject()) {
-                sendError(null, "INVALID_REQUEST", "Request must be a JSON object.");
+                sendError(null, ProtocolErrorCode.INVALID_REQUEST, "Request must be a JSON object.");
                 return true;
             }
             request = parsed.getAsJsonObject();
         } catch (JsonParseException exception) {
-            sendError(null, "INVALID_REQUEST", "Request is not valid JSON.");
+            sendError(null, ProtocolErrorCode.INVALID_REQUEST, "Request is not valid JSON.");
             return true;
         }
 
         String id = getString(request, "id");
         if (id == null || id.isBlank()) {
-            sendError(null, "INVALID_REQUEST", "Request id must be a non-empty string.");
+            sendError(null, ProtocolErrorCode.INVALID_REQUEST, "Request id must be a non-empty string.");
             return true;
         }
 
         if (!hasOnlyProperties(request, REQUEST_PROPERTIES)) {
-            sendError(id, "INVALID_REQUEST", "Request contains unsupported properties.");
+            sendError(id, ProtocolErrorCode.INVALID_REQUEST, "Request contains unsupported properties.");
             return true;
         }
 
         Integer protocolVersion = getInteger(request, "protocolVersion");
         if (protocolVersion == null) {
-            sendError(id, "INVALID_REQUEST", "protocolVersion must be an integer.");
+            sendError(id, ProtocolErrorCode.INVALID_REQUEST, "protocolVersion must be an integer.");
             return true;
         }
         if (protocolVersion != PROTOCOL_VERSION) {
             sendError(
                     id,
-                    "INCOMPATIBLE_PROTOCOL",
+                    ProtocolErrorCode.INCOMPATIBLE_PROTOCOL,
                     "Unsupported protocol version " + protocolVersion + "; expected " + PROTOCOL_VERSION + ".");
             return true;
         }
@@ -92,7 +100,10 @@ public final class ProtocolServer {
         String method = getString(request, "method");
         JsonObject params = getObject(request, "params");
         if (method == null || params == null) {
-            sendError(id, "INVALID_REQUEST", "method must be a string and params must be an object.");
+            sendError(
+                    id,
+                    ProtocolErrorCode.INVALID_REQUEST,
+                    "method must be a string and params must be an object.");
             return true;
         }
 
@@ -112,7 +123,7 @@ public final class ProtocolServer {
                 yield false;
             }
             default -> {
-                sendError(id, "METHOD_NOT_FOUND", "Unknown method: " + method);
+                sendError(id, ProtocolErrorCode.METHOD_NOT_FOUND, "Unknown method: " + method);
                 yield true;
             }
         };
@@ -121,16 +132,19 @@ public final class ProtocolServer {
     private void formatDocument(String id, JsonObject params) {
         String source = getString(params, "source");
         if (source == null) {
-            sendError(id, "INVALID_REQUEST", "formatDocument params.source must be a string.");
+            sendError(
+                    id,
+                    ProtocolErrorCode.INVALID_REQUEST,
+                    "formatDocument params.source must be a string.");
             return;
         }
         try {
             sendResult(id, Map.of("formatted", formatter.format(source)));
         } catch (FormatterException exception) {
-            sendError(id, "FORMAT_ERROR", safeMessage(exception));
+            sendError(id, ProtocolErrorCode.FORMAT_ERROR, safeMessage(exception));
         } catch (RuntimeException exception) {
             error.println("Unexpected formatting failure: " + exception.getClass().getSimpleName());
-            sendError(id, "INTERNAL_ERROR", "Unexpected formatter failure.");
+            sendError(id, ProtocolErrorCode.INTERNAL_ERROR, "Unexpected formatter failure.");
         }
     }
 
@@ -142,11 +156,11 @@ public final class ProtocolServer {
         output.println(gson.toJson(response));
     }
 
-    private void sendError(String id, String code, String message) {
+    private void sendError(String id, ProtocolErrorCode code, String message) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("protocolVersion", PROTOCOL_VERSION);
         response.put("id", id);
-        response.put("error", Map.of("code", code, "message", message));
+        response.put("error", Map.of("code", code.name(), "message", message));
         output.println(gson.toJson(response));
     }
 

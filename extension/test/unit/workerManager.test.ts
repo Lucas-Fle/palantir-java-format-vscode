@@ -1,23 +1,19 @@
 import { EventEmitter } from "node:events";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  spawn: vi.fn(),
-  validateJava: vi.fn()
+  prepare: vi.fn(),
+  spawn: vi.fn()
 }));
 
-vi.mock("node:child_process", () => ({
-  spawn: mocks.spawn
-}));
-
-vi.mock("../../src/configuration", () => ({
-  readConfiguration: () => ({ javaHome: "", jvmArgs: [] })
-}));
-
-vi.mock("../../src/javaRuntime", () => ({
-  configuredJavaExecutable: () => "java",
-  validateJava: mocks.validateJava
+vi.mock("../../src/workerProcessFactory", () => ({
+  JavaWorkerProcessFactory: class {
+    public prepare(): never {
+      throw new Error("Unexpected default process factory.");
+    }
+  }
 }));
 
 vi.mock("../../src/workerClient", () => ({
@@ -47,6 +43,10 @@ vi.mock("../../src/workerClient", () => ({
 
 import type { Logger } from "../../src/logger";
 import { WorkerManager } from "../../src/workerManager";
+import type {
+  PreparedWorkerProcess,
+  WorkerProcessFactory
+} from "../../src/workerProcessFactory";
 
 class MockChild extends EventEmitter {
   public exitCode: number | null = null;
@@ -67,11 +67,25 @@ const loggerMocks = {
   warn: vi.fn()
 };
 const logger = loggerMocks as unknown as Logger;
+const processFactory: WorkerProcessFactory = {
+  prepare: mocks.prepare
+};
+
+function preparedProcess(child: MockChild): PreparedWorkerProcess {
+  return {
+    javaExecutable: "java",
+    javaVersion: 21,
+    spawn: () => {
+      mocks.spawn();
+      return child as unknown as ChildProcessWithoutNullStreams;
+    }
+  };
+}
 
 describe("WorkerManager lifecycle", () => {
   beforeEach(() => {
+    mocks.prepare.mockReset();
     mocks.spawn.mockReset();
-    mocks.validateJava.mockReset();
     loggerMocks.error.mockClear();
     loggerMocks.info.mockClear();
     loggerMocks.warn.mockClear();
@@ -81,20 +95,21 @@ describe("WorkerManager lifecycle", () => {
     vi.useRealTimers();
   });
 
-  it("does not spawn a worker when disposed during Java validation", async () => {
-    let finishValidation: ((version: string) => void) | undefined;
-    mocks.validateJava.mockReturnValue(
-      new Promise<string>((resolve) => {
-        finishValidation = resolve;
+  it("does not spawn a worker when disposed during process preparation", async () => {
+    let finishPreparation: ((process: PreparedWorkerProcess) => void) | undefined;
+    const child = new MockChild();
+    mocks.prepare.mockReturnValue(
+      new Promise<PreparedWorkerProcess>((resolve) => {
+        finishPreparation = resolve;
       })
     );
-    const manager = new WorkerManager("extension", logger);
+    const manager = new WorkerManager("extension", logger, processFactory);
 
     const formatting = manager.formatDocument("source");
-    await vi.waitFor(() => expect(mocks.validateJava).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(mocks.prepare).toHaveBeenCalledOnce());
 
     manager.dispose();
-    finishValidation?.("21");
+    finishPreparation?.(preparedProcess(child));
 
     await expect(formatting).rejects.toThrow("disposed");
     expect(mocks.spawn).not.toHaveBeenCalled();
@@ -103,10 +118,9 @@ describe("WorkerManager lifecycle", () => {
 
   it("cancels a scheduled automatic restart when disposed", async () => {
     vi.useFakeTimers();
-    mocks.validateJava.mockResolvedValue("21");
     const child = new MockChild();
-    mocks.spawn.mockReturnValue(child);
-    const manager = new WorkerManager("extension", logger);
+    mocks.prepare.mockResolvedValue(preparedProcess(child));
+    const manager = new WorkerManager("extension", logger, processFactory);
 
     await manager.formatDocument("source");
     expect(mocks.spawn).toHaveBeenCalledOnce();

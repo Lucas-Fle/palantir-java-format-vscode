@@ -1,15 +1,8 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import * as path from "node:path";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 
 import type * as vscode from "vscode";
 
-import {
-  FORMATTER_VERSION,
-  JAVAC_EXPORTS,
-  WORKER_JAR_NAME
-} from "./constants";
-import { readConfiguration } from "./configuration";
-import { configuredJavaExecutable, validateJava } from "./javaRuntime";
+import { FORMATTER_VERSION } from "./constants";
 import type { Logger } from "./logger";
 import {
   createRequest,
@@ -17,6 +10,10 @@ import {
   isInitializeResult
 } from "./protocol";
 import { WorkerClient } from "./workerClient";
+import {
+  JavaWorkerProcessFactory,
+  type WorkerProcessFactory
+} from "./workerProcessFactory";
 
 export type WorkerState = "stopped" | "starting" | "ready" | "stopping" | "failed";
 
@@ -46,7 +43,8 @@ export class WorkerManager implements vscode.Disposable {
 
   public constructor(
     private readonly extensionPath: string,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly processFactory: WorkerProcessFactory = new JavaWorkerProcessFactory()
   ) {}
 
   public get state(): WorkerState {
@@ -144,23 +142,15 @@ export class WorkerManager implements vscode.Disposable {
 
     this.setState("starting");
     try {
-      const config = readConfiguration();
-      const javaExecutable = configuredJavaExecutable(config.javaHome);
-      const javaVersion = await validateJava(javaExecutable);
+      const preparedProcess = await this.processFactory.prepare(this.extensionPath);
       this.assertLifecycleCurrent(generation);
 
-      const jarPath = path.join(this.extensionPath, "dist", "worker", WORKER_JAR_NAME);
-      const exportArgs = JAVAC_EXPORTS.flatMap((value) => ["--add-exports", value]);
-      const args = [...config.jvmArgs, ...exportArgs, "-jar", jarPath];
-
-      this.logger.info(`Starting worker with Java ${javaVersion}: ${javaExecutable}`);
+      this.logger.info(
+        `Starting worker with Java ${preparedProcess.javaVersion}: ${preparedProcess.javaExecutable}`
+      );
       this.logger.info(`Bundled Palantir Java Format version: ${FORMATTER_VERSION}`);
 
-      const child = spawn(javaExecutable, args, {
-        shell: false,
-        stdio: ["pipe", "pipe", "pipe"],
-        windowsHide: true
-      });
+      const child = preparedProcess.spawn();
       this.child = child;
       const client = new WorkerClient(child, (message) => this.logger.warn(message));
       this.client = client;

@@ -77,7 +77,13 @@
           ],
           "properties": {
             "code": {
-              "type": "string"
+              "enum": [
+                "INVALID_REQUEST",
+                "INCOMPATIBLE_PROTOCOL",
+                "METHOD_NOT_FOUND",
+                "FORMAT_ERROR",
+                "INTERNAL_ERROR"
+              ]
             },
             "message": {
               "type": "string"

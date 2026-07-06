@@ -1,7 +1,11 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
 
-import { isProtocolResponse, type ProtocolRequest } from "./protocol";
+import {
+  isProtocolResponse,
+  type ProtocolErrorCode,
+  type ProtocolRequest
+} from "./protocol";
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -11,7 +15,7 @@ interface PendingRequest {
 
 export class WorkerProtocolError extends Error {
   public constructor(
-    public readonly code: string,
+    public readonly code: ProtocolErrorCode,
     message: string
   ) {
     super(message);

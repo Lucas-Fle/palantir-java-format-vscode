@@ -11,8 +11,18 @@ export interface FormatDocumentResult {
   formatted: string;
 }
 
+export const PROTOCOL_ERROR_CODES = [
+  "INVALID_REQUEST",
+  "INCOMPATIBLE_PROTOCOL",
+  "METHOD_NOT_FOUND",
+  "FORMAT_ERROR",
+  "INTERNAL_ERROR"
+] as const;
+
+export type ProtocolErrorCode = (typeof PROTOCOL_ERROR_CODES)[number];
+
 export interface ProtocolError {
-  code: string;
+  code: ProtocolErrorCode;
   message: string;
 }
 
@@ -30,14 +40,27 @@ interface ProtocolFailure {
 
 export type ProtocolResponse<TResult = unknown> = ProtocolSuccess<TResult> | ProtocolFailure;
 
-export interface ProtocolRequest<TParams = unknown> {
-  protocolVersion: number;
-  id: string;
-  method: string;
-  params: TParams;
+interface ProtocolMethodDefinition {
+  initialize: Record<string, never>;
+  formatDocument: { source: string };
+  shutdown: Record<string, never>;
 }
 
-export function createRequest<TParams>(method: string, params: TParams): ProtocolRequest<TParams> {
+export type ProtocolMethod = keyof ProtocolMethodDefinition;
+
+export type ProtocolRequest<TMethod extends ProtocolMethod = ProtocolMethod> = {
+  [Method in TMethod]: {
+    protocolVersion: number;
+    id: string;
+    method: Method;
+    params: ProtocolMethodDefinition[Method];
+  };
+}[TMethod];
+
+export function createRequest<TMethod extends ProtocolMethod>(
+  method: TMethod,
+  params: ProtocolMethodDefinition[TMethod]
+): ProtocolRequest<TMethod> {
   return {
     protocolVersion: PROTOCOL_VERSION,
     id: randomUUID(),
@@ -101,8 +124,15 @@ function isProtocolError(value: unknown): value is ProtocolError {
   return (
     isRecord(value) &&
     hasExactKeys(value, ["code", "message"]) &&
-    typeof value.code === "string" &&
+    isProtocolErrorCode(value.code) &&
     typeof value.message === "string"
+  );
+}
+
+function isProtocolErrorCode(value: unknown): value is ProtocolErrorCode {
+  return (
+    typeof value === "string" &&
+    (PROTOCOL_ERROR_CODES as readonly string[]).includes(value)
   );
 }
 
