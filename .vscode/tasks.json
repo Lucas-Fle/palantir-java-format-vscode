@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build for F5",
+      "type": "shell",
+      "command": "echo Build complete",
+      "group": "build",
+      "problemMatcher": [],
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Build worker",
+        "Copy worker",
+        "Build extension"
+      ]
+    },
+    {
+      "label": "Build worker",
+      "type": "npm",
+      "script": "build:worker",
+      "problemMatcher": []
+    },
+    {
+      "label": "Copy worker",
+      "type": "npm",
+      "script": "copy:worker",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build extension",
+      "type": "npm",
+      "script": "build:extension",
+      "problemMatcher": "$tsc"
+    }
+  ]
+}

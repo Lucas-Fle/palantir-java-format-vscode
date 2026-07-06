@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+worker/target/
+.vscode-test/
+.integration-workspace/
+*.vsix
+coverage/
+.idea/
+*.iml

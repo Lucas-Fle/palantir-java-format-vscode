@@ -1,0 +1,105 @@
+{
+  "name": "palantir-java-format-worker",
+  "displayName": "Palantir Java Format Worker",
+  "description": "Formats Java locally with bundled Palantir Java Format 2.91.0.",
+  "version": "0.1.0",
+  "publisher": "lucasfleury",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lucasfleury/palantir-java-format-worker"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "keywords": [
+    "java",
+    "formatter",
+    "palantir"
+  ],
+  "activationEvents": [
+    "onLanguage:java",
+    "onCommand:palantirJavaFormat.restartWorker",
+    "onCommand:palantirJavaFormat.showOutput",
+    "onCommand:palantirJavaFormat.showVersion"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "palantirJavaFormat.restartWorker",
+        "title": "Palantir Java Format: Restart Worker"
+      },
+      {
+        "command": "palantirJavaFormat.showOutput",
+        "title": "Palantir Java Format: Show Output"
+      },
+      {
+        "command": "palantirJavaFormat.showVersion",
+        "title": "Palantir Java Format: Show Version"
+      }
+    ],
+    "configuration": {
+      "title": "Palantir Java Format",
+      "properties": {
+        "palantirJavaFormat.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Palantir Java Format for Java documents."
+        },
+        "palantirJavaFormat.javaHome": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "JDK home used to run the formatter worker. Falls back to JAVA_HOME, then java on PATH."
+        },
+        "palantirJavaFormat.jvmArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine",
+          "description": "Additional JVM arguments passed as separate arguments before -jar."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build:worker": "node scripts/build-worker.mjs",
+    "copy:worker": "node scripts/copy-worker.mjs",
+    "check:types": "tsc --noEmit",
+    "lint": "eslint extension",
+    "build:extension": "npm run check:types && node esbuild.mjs --production",
+    "compile:tests": "tsc -p tsconfig.test.json",
+    "test:unit": "vitest run",
+    "test:integration": "npm run compile:tests && node out/test/runTest.js",
+    "test": "npm run test:unit && npm run test:integration",
+    "verify": "npm run build:worker && npm run copy:worker && npm run lint && npm run build:extension && npm run test",
+    "vscode:prepublish": "npm run copy:worker && npm run build:extension",
+    "package": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.15.32",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.5",
+    "eslint": "^9.30.0",
+    "glob": "^11.0.3",
+    "mocha": "^11.7.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.0",
+    "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "diff": "8.0.3",
+    "serialize-javascript": "7.0.5"
+  }
+}

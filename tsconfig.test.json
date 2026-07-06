@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "noEmit": false,
+    "rootDir": "extension/test/integration",
+    "outDir": "out/test",
+    "sourceMap": true,
+    "types": [
+      "node",
+      "vscode",
+      "mocha"
+    ]
+  },
+  "include": [
+    "extension/test/integration/**/*.ts"
+  ]
+}
