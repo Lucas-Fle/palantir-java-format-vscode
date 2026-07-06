@@ -30,10 +30,13 @@ export class WorkerManager implements vscode.Disposable {
   private stateValue: WorkerState = "stopped";
   private child: ChildProcessWithoutNullStreams | undefined;
   private client: WorkerClient | undefined;
-  private startPromise: Promise<void> | undefined;
+  private operationQueue: Promise<void> = Promise.resolve();
   private restartPromise: Promise<void> | undefined;
+  private restartTimer: NodeJS.Timeout | undefined;
+  private resolveRestartDelay: (() => void) | undefined;
   private crashCount = 0;
   private stableTimer: NodeJS.Timeout | undefined;
+  private generation = 0;
   private intentionalStop = false;
   private disposed = false;
 
@@ -57,12 +60,29 @@ export class WorkerManager implements vscode.Disposable {
 
   public async restart(): Promise<void> {
     this.logger.info("Manual worker restart requested.");
+    this.assertNotDisposed();
     this.crashCount = 0;
-    await this.stop();
-    await this.start();
+    const generation = this.invalidateLifecycle();
+    return this.enqueueTransition(async () => {
+      await this.stopInternal();
+      await this.startInternal(generation);
+    });
   }
 
-  public async stop(): Promise<void> {
+  public stop(): Promise<void> {
+    this.invalidateLifecycle();
+    return this.enqueueTransition(() => this.stopInternal());
+  }
+
+  public dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    void this.stop();
+  }
+
+  private async stopInternal(): Promise<void> {
     if (this.stateValue === "stopped") {
       return;
     }
@@ -88,21 +108,12 @@ export class WorkerManager implements vscode.Disposable {
     client?.dispose();
     this.child = undefined;
     this.client = undefined;
-    this.startPromise = undefined;
-    this.restartPromise = undefined;
     this.setState("stopped");
     this.intentionalStop = false;
   }
 
-  public dispose(): void {
-    this.disposed = true;
-    void this.stop();
-  }
-
   private async ensureReady(): Promise<void> {
-    if (this.disposed) {
-      throw new Error("Formatter worker manager is disposed.");
-    }
+    this.assertNotDisposed();
     if (this.stateValue === "ready") {
       return;
     }
@@ -112,58 +123,54 @@ export class WorkerManager implements vscode.Disposable {
     return this.start();
   }
 
-  private async start(): Promise<void> {
+  private start(): Promise<void> {
+    this.assertNotDisposed();
+    const generation = this.generation;
+    return this.enqueueTransition(() => this.startInternal(generation));
+  }
+
+  private async startInternal(generation: number): Promise<void> {
+    this.assertLifecycleCurrent(generation);
     if (this.stateValue === "ready") {
       return;
     }
-    if (this.startPromise !== undefined) {
-      return this.startPromise;
-    }
 
-    this.startPromise = this.startInternal().catch((error: unknown) => {
-      this.setState("failed");
-      throw error;
-    });
-    try {
-      await this.startPromise;
-    } finally {
-      this.startPromise = undefined;
-    }
-  }
-
-  private async startInternal(): Promise<void> {
     this.setState("starting");
-    const config = readConfiguration();
-    const javaExecutable = configuredJavaExecutable(config.javaHome);
-    const javaVersion = await validateJava(javaExecutable);
-    const jarPath = path.join(this.extensionPath, "dist", "worker", WORKER_JAR_NAME);
-    const exportArgs = JAVAC_EXPORTS.flatMap((value) => ["--add-exports", value]);
-    const args = [...config.jvmArgs, ...exportArgs, "-jar", jarPath];
-
-    this.logger.info(`Starting worker with Java ${javaVersion}: ${javaExecutable}`);
-    this.logger.info(`Bundled Palantir Java Format version: ${FORMATTER_VERSION}`);
-
-    const child = spawn(javaExecutable, args, {
-      shell: false,
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true
-    });
-    this.child = child;
-    this.client = new WorkerClient(child, (message) => this.logger.warn(message));
-    child.stderr.on("data", (chunk: Buffer) => {
-      for (const line of chunk.toString("utf8").split(/\r?\n/u)) {
-        if (line.length > 0) {
-          this.logger.info(`[worker] ${line}`);
-        }
-      }
-    });
-    child.once("exit", (code, signal) => this.handleExit(child, code, signal));
-
     try {
-      const initialized = await this.client.request<InitializeResult>(
+      const config = readConfiguration();
+      const javaExecutable = configuredJavaExecutable(config.javaHome);
+      const javaVersion = await validateJava(javaExecutable);
+      this.assertLifecycleCurrent(generation);
+
+      const jarPath = path.join(this.extensionPath, "dist", "worker", WORKER_JAR_NAME);
+      const exportArgs = JAVAC_EXPORTS.flatMap((value) => ["--add-exports", value]);
+      const args = [...config.jvmArgs, ...exportArgs, "-jar", jarPath];
+
+      this.logger.info(`Starting worker with Java ${javaVersion}: ${javaExecutable}`);
+      this.logger.info(`Bundled Palantir Java Format version: ${FORMATTER_VERSION}`);
+
+      const child = spawn(javaExecutable, args, {
+        shell: false,
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true
+      });
+      this.child = child;
+      const client = new WorkerClient(child, (message) => this.logger.warn(message));
+      this.client = client;
+      child.stderr.on("data", (chunk: Buffer) => {
+        for (const line of chunk.toString("utf8").split(/\r?\n/u)) {
+          if (line.length > 0) {
+            this.logger.info(`[worker] ${line}`);
+          }
+        }
+      });
+      child.once("exit", (code, signal) => this.handleExit(child, code, signal));
+
+      const initialized = await client.request<InitializeResult>(
         createRequest("initialize", {}),
         STARTUP_TIMEOUT_MS
       );
+      this.assertLifecycleCurrent(generation);
       if (initialized.formatterVersion !== FORMATTER_VERSION) {
         throw new Error(
           `Worker reports Palantir ${initialized.formatterVersion}, expected ${FORMATTER_VERSION}.`
@@ -180,7 +187,9 @@ export class WorkerManager implements vscode.Disposable {
       }, STABLE_PERIOD_MS);
     } catch (error) {
       this.setState("failed");
-      child.kill();
+      if (this.child !== undefined && isRunning(this.child)) {
+        this.child.kill();
+      }
       throw error;
     }
   }
@@ -216,8 +225,17 @@ export class WorkerManager implements vscode.Disposable {
     this.logger.warn(
       `Restarting worker in ${delayMs} ms (attempt ${this.crashCount}/${MAX_AUTOMATIC_RESTARTS}).`
     );
-    this.restartPromise = new Promise((resolve) => setTimeout(resolve, delayMs))
-      .then(() => this.start())
+    const generation = this.generation;
+    const restartPromise = new Promise<void>((resolve) => {
+      this.resolveRestartDelay = resolve;
+      this.restartTimer = setTimeout(resolve, delayMs);
+    })
+      .then(() => {
+        if (this.disposed || generation !== this.generation) {
+          return;
+        }
+        return this.start();
+      })
       .catch((error: unknown) => {
         this.logger.error(
           `Automatic worker restart failed: ${error instanceof Error ? error.message : String(error)}`
@@ -225,9 +243,14 @@ export class WorkerManager implements vscode.Disposable {
         throw error;
       })
       .finally(() => {
-        this.restartPromise = undefined;
+        if (this.restartPromise === restartPromise) {
+          this.restartPromise = undefined;
+          this.restartTimer = undefined;
+          this.resolveRestartDelay = undefined;
+        }
       });
-    void this.restartPromise.catch(() => undefined);
+    this.restartPromise = restartPromise;
+    void restartPromise.catch(() => undefined);
   }
 
   private requireClient(): WorkerClient {
@@ -239,6 +262,44 @@ export class WorkerManager implements vscode.Disposable {
 
   private setState(state: WorkerState): void {
     this.stateValue = state;
+  }
+
+  private enqueueTransition<T>(transition: () => Promise<T>): Promise<T> {
+    const result = this.operationQueue.then(transition, transition);
+    this.operationQueue = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  }
+
+  private invalidateLifecycle(): number {
+    this.generation += 1;
+    this.cancelRestart();
+    return this.generation;
+  }
+
+  private cancelRestart(): void {
+    if (this.restartTimer !== undefined) {
+      clearTimeout(this.restartTimer);
+    }
+    this.restartTimer = undefined;
+    this.resolveRestartDelay?.();
+    this.resolveRestartDelay = undefined;
+    this.restartPromise = undefined;
+  }
+
+  private assertNotDisposed(): void {
+    if (this.disposed) {
+      throw new Error("Formatter worker manager is disposed.");
+    }
+  }
+
+  private assertLifecycleCurrent(generation: number): void {
+    this.assertNotDisposed();
+    if (generation !== this.generation) {
+      throw new Error("Formatter worker start was cancelled.");
+    }
   }
 
   private clearStableTimer(): void {
