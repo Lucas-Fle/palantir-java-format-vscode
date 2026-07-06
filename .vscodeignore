@@ -9,6 +9,7 @@ protocol/**
 scripts/**
 out/**
 node_modules/**
+coverage/**
 *.vsix
 *.map
 eslint.config.mjs
