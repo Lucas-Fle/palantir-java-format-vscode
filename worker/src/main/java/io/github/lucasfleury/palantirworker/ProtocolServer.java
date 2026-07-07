@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.JsonParseException;
 import com.palantir.javaformat.java.FormatterException;
 import java.io.BufferedReader;
@@ -62,7 +63,7 @@ public final class ProtocolServer {
     private boolean handleLine(String line) {
         JsonObject request;
         try {
-            JsonElement parsed = gson.fromJson(line, JsonElement.class);
+            JsonElement parsed = JsonParser.parseString(line);
             if (parsed == null || !parsed.isJsonObject()) {
                 sendError(null, ProtocolErrorCode.INVALID_REQUEST, "Request must be a JSON object.");
                 return true;
