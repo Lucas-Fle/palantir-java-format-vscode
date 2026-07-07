@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.lucasfleury</groupId>
+  <groupId>io.github.lucasfle</groupId>
   <artifactId>palantir-java-format-worker</artifactId>
   <version>0.1.0</version>
   <name>Palantir Java Format Worker</name>
@@ -126,7 +126,7 @@
                 </transformer>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <manifestEntries>
-                    <Main-Class>io.github.lucasfleury.palantirworker.Main</Main-Class>
+                    <Main-Class>io.github.lucasfle.palantirworker.Main</Main-Class>
                     <Implementation-Version>${project.version}</Implementation-Version>
                     <Palantir-Formatter-Version>${palantir-java-format.version}</Palantir-Formatter-Version>
                     <Add-Exports>jdk.compiler/com.sun.tools.javac.file jdk.compiler/com.sun.tools.javac.main jdk.compiler/com.sun.tools.javac.parser jdk.compiler/com.sun.tools.javac.tree jdk.compiler/com.sun.tools.javac.util jdk.compiler/com.sun.tools.javac.code jdk.compiler/com.sun.tools.javac.api</Add-Exports>

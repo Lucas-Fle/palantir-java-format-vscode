@@ -1,4 +1,4 @@
-package io.github.lucasfleury.palantirworker;
+package io.github.lucasfle.palantirworker;
 
 import com.palantir.javaformat.java.FormatterException;
 import com.palantir.javaformat.java.FormatterService;

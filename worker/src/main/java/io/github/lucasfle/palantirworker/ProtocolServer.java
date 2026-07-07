@@ -1,4 +1,4 @@
-package io.github.lucasfleury.palantirworker;
+package io.github.lucasfle.palantirworker;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

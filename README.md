@@ -82,7 +82,7 @@ Set the extension as the default Java formatter in your VS Code settings:
 ```json
 {
   "[java]": {
-    "editor.defaultFormatter": "lucasfleury.palantir-java-format",
+    "editor.defaultFormatter": "lucas-fle.palantir-java-format",
     "editor.formatOnSave": true
   }
 }
@@ -107,7 +107,7 @@ Complete example:
 ```json
 {
   "[java]": {
-    "editor.defaultFormatter": "lucasfleury.palantir-java-format",
+    "editor.defaultFormatter": "lucas-fle.palantir-java-format",
     "editor.formatOnSave": true
   },
   "palantirJavaFormat.enabled": true,

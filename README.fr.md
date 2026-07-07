@@ -84,7 +84,7 @@ Définir l’extension comme formateur Java par défaut dans les paramètres VS 
 ```json
 {
   "[java]": {
-    "editor.defaultFormatter": "lucasfleury.palantir-java-format",
+    "editor.defaultFormatter": "lucas-fle.palantir-java-format",
     "editor.formatOnSave": true
   }
 }
@@ -109,7 +109,7 @@ Exemple complet :
 ```json
 {
   "[java]": {
-    "editor.defaultFormatter": "lucasfleury.palantir-java-format",
+    "editor.defaultFormatter": "lucas-fle.palantir-java-format",
     "editor.formatOnSave": true
   },
   "palantirJavaFormat.enabled": true,

@@ -1,4 +1,4 @@
-package io.github.lucasfleury.palantirworker;
+package io.github.lucasfle.palantirworker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
